@@ -6,6 +6,7 @@ import type { RepositoryCharacter } from "@/domain/repository-characters";
 import {
   ARENA_USERS_CACHE_TAG,
   CACHE_REVALIDATE_SECONDS,
+  LANDING_TOP_ARMY_CACHE_TAG,
   armyCacheTag,
   profileCacheTag,
 } from "@/server/cache-tags";
@@ -291,6 +292,7 @@ export async function syncRepositoryArmy() {
     revalidateTag(armyCacheTag(dbUser.id), "max");
     revalidateTag(profileCacheTag(dbUser.id), "max");
     revalidateTag(ARENA_USERS_CACHE_TAG, "max");
+    revalidateTag(LANDING_TOP_ARMY_CACHE_TAG, "max");
     revalidatePath("/game/army");
     revalidatePath("/game/dashboard");
     revalidatePath("/game/arena");
