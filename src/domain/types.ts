@@ -68,6 +68,7 @@ export type PlayerProfileView = {
   title: string;
   level: number;
   rating: number;
+  avatarUrl?: string | null;
   stats: PlayerStats;
   visualPreset: CharacterVisualPreset;
   repositories: RepositorySignal[];

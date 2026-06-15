@@ -29,3 +29,33 @@ export function PlayerCard({ player }: { player: PlayerProfileView }) {
     </PixelPanel>
   );
 }
+
+export function CompactPlayerCard({ player }: { player: PlayerProfileView }) {
+  return (
+    <PixelPanel title={player.username}>
+      <div className="flex items-center gap-3">
+        {player.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={player.avatarUrl}
+            alt=""
+            className="size-14 shrink-0 border-2 border-[#c6d2ff] bg-[#0e1629] object-cover"
+          />
+        ) : (
+          <div
+            className="grid size-14 shrink-0 place-items-center border-2 border-[#c6d2ff] font-mono text-sm font-black text-[#071016]"
+            style={{ backgroundColor: player.visualPreset.primaryColor }}
+          >
+            {player.visualPreset.placeholderShape.slice(0, 2).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="truncate font-mono text-sm font-bold text-[#59f19a]">{player.visualPreset.className}</p>
+          <p className="truncate text-base font-black text-[#eef3ff]">{player.displayName}</p>
+          <p className="font-mono text-xs text-[#c6d2ff]">{player.stats.powerScore} power</p>
+          <p className="mt-1 font-mono text-xs text-[#ffe66d]">LVL {player.level} / ELO {player.rating}</p>
+        </div>
+      </div>
+    </PixelPanel>
+  );
+}

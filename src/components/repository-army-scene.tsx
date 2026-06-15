@@ -21,12 +21,14 @@ function CharacterMesh({
   onLeave: () => void;
 }) {
   const ref = useRef<Mesh>(null);
+  const elapsed = useRef(0);
   const scale = Math.min(2.2, Math.max(0.65, character.power / 55));
 
-  useFrame(({ clock }) => {
+  useFrame((_, delta) => {
     if (!ref.current) return;
+    elapsed.current += delta;
     ref.current.rotation.y += character.isFork ? 0.008 : 0.015;
-    ref.current.position.y = position[1] + Math.sin(clock.elapsedTime * 2 + character.id) * 0.05;
+    ref.current.position.y = position[1] + Math.sin(elapsed.current * 2 + character.id) * 0.05;
   });
 
   const geometry =

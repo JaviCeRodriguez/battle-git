@@ -1,6 +1,7 @@
 import { GitBranch, RefreshCcw, Shield } from "lucide-react";
 import { RepositoryArmyScene } from "@/components/repository-army-scene";
 import { PixelPanel } from "@/components/ui/pixel-panel";
+import { formatDateTime } from "@/lib/format-date";
 import { getRepositoryArmyData, syncRepositoryArmy } from "@/server/army/repository-army";
 
 export const dynamic = "force-dynamic";
@@ -9,15 +10,6 @@ async function syncArmyAction() {
   "use server";
 
   await syncRepositoryArmy();
-}
-
-function formatDate(date: Date | null) {
-  if (!date) return "Nunca";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
 }
 
 export default async function ArmyPage() {
@@ -57,11 +49,11 @@ export default async function ArmyPage() {
                 <span className="text-[#ffe66d]">Fuente:</span> Neon PostgreSQL
               </p>
               <p>
-                <span className="text-[#ffe66d]">Ultimo sync:</span> {formatDate(army.lastSyncAt)}
+                <span className="text-[#ffe66d]">Ultimo sync:</span> {formatDateTime(army.lastSyncAt)}
               </p>
               <p>
                 <span className="text-[#ffe66d]">Proximo sync:</span>{" "}
-                {army.canSync ? "Disponible ahora" : formatDate(army.nextSyncAt)}
+                {army.canSync ? "Disponible ahora" : formatDateTime(army.nextSyncAt)}
               </p>
               <p>
                 <span className="text-[#ffe66d]">Estado:</span> {army.syncStatus ?? "sin registros"}

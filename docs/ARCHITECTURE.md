@@ -236,6 +236,14 @@ Decision de MVP:
 - `/game/arena/battle` reutiliza el playback visual de batalla para combates contra usuarios o bots starter.
 - Los bots starter se generan en servidor como combatientes virtuales, no como filas reales en `users`.
 - La arena mezcla combatientes reales con bots identificados como `BOT`, escalados segun el poder actual del usuario.
+- La batalla de arena usa una simulacion de ejercitos: cada repositorio/personaje tiene HP, poder, tipo y equipo.
+- El objetivo atacado se elige random entre enemigos vivos.
+- Las probabilidades de hit, defensa y critico se calculan con formulas basadas en poder relativo.
+- Los cues visuales dependen del tipo: magos lanzan hechizos, arqueros flechas, caballeros/esbirros cargan contra el enemigo.
+- Los golpes criticos se muestran en rojo y los personajes con HP 0 se retiran de la escena.
+- Las batallas se registran en `battle_logs`, incluyendo bots, resultado, poderes y snapshot de simulacion.
+- Si el usuario gana, el oponente queda oculto de su arena durante una semana.
+- Al finalizar o skipear la simulacion, la UI muestra un modal con resultado y accesos a Army/Arena.
 
 ## 8. Modelo de Dominio Inicial
 

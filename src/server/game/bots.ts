@@ -1,4 +1,6 @@
 import type { CharacterVisualPreset, PlayerProfileView, PlayerStats } from "@/domain/types";
+import type { ArmyBattleFighterInput, ArmyBattleTeam } from "@/domain/army-battle";
+import type { RepositoryCharacterKind } from "@/domain/repository-characters";
 import type { LanguageSummary } from "./profiles";
 
 export type StarterBot = {
@@ -163,4 +165,27 @@ export function botToPlayerProfileView(bot: StarterBot): PlayerProfileView {
     visualPreset: bot.visualPreset,
     repositories: [],
   };
+}
+
+function kindFromClassName(className: string): RepositoryCharacterKind {
+  if (className.includes("Mago")) return "Mago";
+  if (className.includes("Caballero")) return "Caballero";
+  if (className.includes("Guardian")) return "Guardian";
+  if (className.includes("Berserker")) return "Berserker";
+  if (className.includes("Escudero")) return "Esbirro";
+  return "Explorador";
+}
+
+export function botToArmyFighters(bot: StarterBot, team: ArmyBattleTeam): ArmyBattleFighterInput[] {
+  const count = Math.max(1, Math.min(8, bot.armyLength));
+  const basePower = Math.max(1, Math.round(bot.totalPower / count));
+
+  return Array.from({ length: count }, (_, index) => ({
+    id: `${bot.id}-${index + 1}`,
+    name: `${bot.displayName} ${index + 1}`,
+    kind: kindFromClassName(bot.className),
+    color: bot.visualPreset.primaryColor,
+    power: basePower + index * 3,
+    team,
+  }));
 }

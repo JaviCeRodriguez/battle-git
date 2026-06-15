@@ -1,6 +1,8 @@
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne } from "drizzle-orm";
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { simulateBattle } from "@/domain/battle";
+import { simulateArmyBattle } from "@/domain/army-battle";
+import type { ArmyBattleFighterInput, ArmyBattleTeam } from "@/domain/army-battle";
 import type { CharacterVisualPreset, PlayerProfileView, PlayerStats, RepositorySignal } from "@/domain/types";
 import {
   snapshotToCharacter,
@@ -14,17 +16,20 @@ import {
 } from "@/server/cache-tags";
 import {
   battleParticipants,
+  battleLogs,
   battles,
   playerProfiles,
   repositorySnapshots,
   users,
 } from "@/server/db/schema";
 import type { RepositoryCharacter } from "@/domain/repository-characters";
-import { botToPlayerProfileView, getStarterBots } from "./bots";
+import { botToArmyFighters, botToPlayerProfileView, getStarterBots } from "./bots";
 
 type UserRow = typeof users.$inferSelect;
 type PlayerProfileRow = typeof playerProfiles.$inferSelect;
 type BattleRow = typeof battles.$inferSelect;
+type BattleLogRow = typeof battleLogs.$inferSelect;
+const BATTLE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type LanguageSummary = {
   name: string;
@@ -38,6 +43,7 @@ export type BattleListItem = {
   result: "won" | "lost";
   opponentName: string;
   opponentUserId: string;
+  opponentIsBot?: boolean;
   createdAt: Date;
 };
 
@@ -166,6 +172,7 @@ function profileToPlayerProfileView(profile: PublicProfileView): PlayerProfileVi
     title: `${profile.profile.className} · ${profile.totalPower} power`,
     level: profile.profile.level,
     rating: profile.profile.rating,
+    avatarUrl: profile.user.avatarUrl,
     stats: buildStatsFromPower(profile.totalPower),
     visualPreset: {
       ...visualPreset,
@@ -173,6 +180,30 @@ function profileToPlayerProfileView(profile: PublicProfileView): PlayerProfileVi
     },
     repositories: armyToRepositorySignals(profile.army),
   };
+}
+
+function profileToArmyFighters(profile: PublicProfileView, team: ArmyBattleTeam): ArmyBattleFighterInput[] {
+  if (profile.army.length === 0) {
+    return [
+      {
+        id: `${profile.user.id}-fallback`,
+        name: profile.user.username,
+        kind: "Explorador",
+        color: "#b9f2ff",
+        power: Math.max(1, profile.totalPower),
+        team,
+      },
+    ];
+  }
+
+  return profile.army.map((character) => ({
+    id: `${profile.user.id}-${character.id}`,
+    name: character.name,
+    kind: character.kind,
+    color: character.color,
+    power: character.power,
+    team,
+  }));
 }
 
 function publicProfileToArenaCombatant(profile: PublicProfileView, currentUserId: string | null): ArenaCombatantView {
@@ -252,6 +283,20 @@ export async function ensurePlayerProfileForUser(userId: string, army: Repositor
 
 async function getBattleHistory(profile: PlayerProfileRow) {
   const db = getDb();
+  const logRows = await db
+    .select()
+    .from(battleLogs)
+    .where(eq(battleLogs.userId, profile.userId))
+    .orderBy(desc(battleLogs.createdAt));
+
+  if (logRows.length > 0) {
+    return {
+      wins: logRows.filter((log) => log.result === "won").length,
+      losses: logRows.filter((log) => log.result === "lost").length,
+      latestBattles: logRows.slice(0, 5).map((log) => battleLogToListItem(log)),
+    };
+  }
+
   const participantRows = await db
     .select()
     .from(battleParticipants)
@@ -296,6 +341,29 @@ async function getBattleHistory(profile: PlayerProfileRow) {
   );
 
   return { wins, losses, latestBattles };
+}
+
+function battleLogToListItem(log: BattleLogRow): BattleListItem {
+  return {
+    id: log.id,
+    mode: "arena",
+    result: log.result === "won" ? "won" : "lost",
+    opponentName: log.opponentName,
+    opponentUserId: log.opponentId,
+    opponentIsBot: log.opponentIsBot,
+    createdAt: log.createdAt,
+  };
+}
+
+async function getDefeatedOpponentIds(userId: string) {
+  const db = getDb();
+  const since = new Date(Date.now() - BATTLE_COOLDOWN_MS);
+  const logs = await db
+    .select({ opponentId: battleLogs.opponentId })
+    .from(battleLogs)
+    .where(and(eq(battleLogs.userId, userId), eq(battleLogs.result, "won"), gte(battleLogs.createdAt, since)));
+
+  return new Set(logs.map((log) => log.opponentId));
 }
 
 async function getPublicProfileForUserRow(user: UserRow): Promise<PublicProfileView> {
@@ -369,6 +437,7 @@ export async function getArenaUsers() {
   const profiles = await getCachedArenaUsersSnapshot();
   const currentProfile = dbUser ? profiles.find((profile) => profile.user.id === dbUser.id) : null;
   const currentPower = currentProfile?.totalPower ?? 0;
+  const defeatedOpponentIds = dbUser ? await getDefeatedOpponentIds(dbUser.id) : new Set<string>();
   const bots = getStarterBots(currentPower).map((bot) => ({
     id: bot.id,
     username: bot.username,
@@ -390,12 +459,16 @@ export async function getArenaUsers() {
   return [
     ...bots,
     ...profiles.map((profile) => publicProfileToArenaCombatant(profile, dbUser?.id ?? null)),
-  ].sort((a, b) => a.totalPower - b.totalPower);
+  ]
+    .filter((combatant) => !defeatedOpponentIds.has(combatant.id))
+    .sort((a, b) => a.totalPower - b.totalPower);
 }
 
 export async function getArenaBattle(opponentId: string | null) {
   const currentProfile = await getCurrentDashboard();
   if (!currentProfile) return null;
+  const defeatedOpponentIds = await getDefeatedOpponentIds(currentProfile.user.id);
+  if (opponentId && defeatedOpponentIds.has(opponentId)) return null;
 
   const player = profileToPlayerProfileView(currentProfile);
   const bot = getStarterBots(currentProfile.totalPower).find((item) => item.id === opponentId);
@@ -404,17 +477,73 @@ export async function getArenaBattle(opponentId: string | null) {
     : opponentId
       ? await getPublicProfile(opponentId).then((profile) => (profile ? profileToPlayerProfileView(profile) : null))
       : null;
+  const opponentProfile = !bot && opponentId ? await getPublicProfile(opponentId) : null;
 
   if (!opponent || opponent.id === player.id) return null;
+
+  const armyFighters = [
+    ...profileToArmyFighters(currentProfile, "left"),
+    ...(bot ? botToArmyFighters(bot, "right") : opponentProfile ? profileToArmyFighters(opponentProfile, "right") : []),
+  ];
+  const seed = Math.max(1, [...`${player.id}-${opponent.id}`].reduce((total, char) => total + char.charCodeAt(0), 0));
+  const armyBattle = simulateArmyBattle(armyFighters, { seed });
 
   return {
     player,
     opponent,
     battle: simulateBattle(player, opponent, {
-      seed: Math.max(1, [...`${player.id}-${opponent.id}`].reduce((total, char) => total + char.charCodeAt(0), 0)),
+      seed,
       mode: "arena",
     }),
+    armyBattle,
+    opponentId: opponent.id,
+    opponentName: opponent.displayName,
+    opponentIsBot: Boolean(bot),
+    result: armyBattle.winnerTeam === "left" ? "won" as const : "lost" as const,
   };
+}
+
+export async function recordArenaBattle(opponentId: string) {
+  "use server";
+
+  const battle = await getArenaBattle(opponentId);
+  const { dbUser } = await upsertCurrentUser();
+  if (!battle || !dbUser) return;
+
+  const db = getDb();
+  const existingCutoff = new Date(Date.now() - 10 * 60 * 1000);
+  const [existing] = await db
+    .select({ id: battleLogs.id })
+    .from(battleLogs)
+    .where(and(
+      eq(battleLogs.userId, dbUser.id),
+      eq(battleLogs.opponentId, opponentId),
+      gte(battleLogs.createdAt, existingCutoff),
+    ))
+    .limit(1);
+
+  if (existing) return;
+
+  await db.insert(battleLogs).values({
+    userId: dbUser.id,
+    opponentId,
+    opponentName: battle.opponentName,
+    opponentIsBot: battle.opponentIsBot,
+    result: battle.result,
+    playerPower: battle.armyBattle.fighters
+      .filter((fighter) => fighter.team === "left")
+      .reduce((total, fighter) => total + fighter.power, 0),
+    opponentPower: battle.armyBattle.fighters
+      .filter((fighter) => fighter.team === "right")
+      .reduce((total, fighter) => total + fighter.power, 0),
+    battleData: battle.armyBattle,
+  });
+
+  revalidateTag(profileCacheTag(dbUser.id), "max");
+  revalidateTag(ARENA_USERS_CACHE_TAG, "max");
+  revalidatePath("/game/dashboard");
+  revalidatePath("/game/arena");
+  revalidatePath(`/game/profile/${dbUser.id}`);
 }
 
 async function createBattleBetweenProfiles(currentProfile: PlayerProfileRow, targetProfile: PlayerProfileRow) {

@@ -104,6 +104,19 @@ export const battleTurns = pgTable("battle_turns", {
   animationCue: text("animation_cue").notNull(),
 });
 
+export const battleLogs = pgTable("battle_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  opponentId: text("opponent_id").notNull(),
+  opponentName: text("opponent_name").notNull(),
+  opponentIsBot: boolean("opponent_is_bot").notNull().default(false),
+  result: text("result").notNull(),
+  playerPower: integer("player_power").notNull(),
+  opponentPower: integer("opponent_power").notNull(),
+  battleData: jsonb("battle_data").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const rankingEntries = pgTable("ranking_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
   playerProfileId: uuid("player_profile_id").notNull().references(() => playerProfiles.id),

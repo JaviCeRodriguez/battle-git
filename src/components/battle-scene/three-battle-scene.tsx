@@ -17,10 +17,12 @@ function PlaceholderFighter({
   active: boolean;
 }) {
   const ref = useRef<Mesh>(null);
+  const elapsed = useRef(0);
 
-  useFrame(({ clock }) => {
+  useFrame((_, delta) => {
     if (!ref.current) return;
-    const pulse = Math.sin(clock.elapsedTime * (active ? 8 : 2)) * 0.08;
+    elapsed.current += delta;
+    const pulse = Math.sin(elapsed.current * (active ? 8 : 2)) * 0.08;
     ref.current.position.y = position[1] + pulse;
     ref.current.rotation.y += active ? 0.03 : 0.01;
   });

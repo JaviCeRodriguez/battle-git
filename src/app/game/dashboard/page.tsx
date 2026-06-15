@@ -3,16 +3,10 @@ import type { ReactNode } from "react";
 import { Crown, Languages, Swords, Trophy, UserRound } from "lucide-react";
 import { PixelButton } from "@/components/ui/pixel-button";
 import { PixelPanel } from "@/components/ui/pixel-panel";
+import { formatDateTime } from "@/lib/format-date";
 import { getCurrentDashboard } from "@/server/game/profiles";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
 
 function Metric({
   label,
@@ -128,7 +122,7 @@ export default async function GameDashboardPage() {
               {dashboard.latestBattles.map((battle) => (
                 <Link
                   key={battle.id}
-                  href={battle.opponentUserId ? `/game/profile/${battle.opponentUserId}` : "/game/arena"}
+                  href={battle.opponentIsBot || !battle.opponentUserId ? "/game/arena" : `/game/profile/${battle.opponentUserId}`}
                   className="grid gap-2 border border-[#40558f] bg-[#0e1629] p-3 transition hover:border-[#59f19a] sm:grid-cols-[auto_1fr_auto]"
                 >
                   <span
@@ -141,7 +135,7 @@ export default async function GameDashboardPage() {
                     {battle.result === "won" ? "Win" : "Loss"}
                   </span>
                   <span className="text-sm text-[#c6d2ff]">vs {battle.opponentName}</span>
-                  <span className="font-mono text-xs text-[#8f9fca]">{formatDate(battle.createdAt)}</span>
+                  <span className="font-mono text-xs text-[#8f9fca]">{formatDateTime(battle.createdAt)}</span>
                 </Link>
               ))}
             </div>
